@@ -1,0 +1,379 @@
+import React, { useState } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, Image, ScrollView, FlatList, Modal, TextInput } from 'react-native';
+import { Picker } from '@react-native-picker/picker';
+
+const TratamientoScreen = () => {
+  const [selectedDate, setSelectedDate] = useState(new Date());
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [modalVisible, setModalVisible] = useState(false);
+  const [selectedTreatment, setSelectedTreatment] = useState('');
+  const [noteText, setNoteText] = useState('');
+  const [treatments, setTreatments] = useState([]);
+  const [total, setTotal] = useState(0);
+
+  const treatmentsOptions = [
+    { name: 'Corona', cost: 1000 },
+    { name: 'Amalgama', cost: 400 },
+  ];
+
+  const handleDateChange = (event, selectedDate) => {
+    const currentDate = selectedDate || date;
+    setShowDatePicker(false);
+    setSelectedDate(currentDate);
+  };
+
+  const handleToothPress = (tooth) => {
+    setSelectedTreatment(tooth);
+    setModalVisible(true);
+  };
+
+  const handleSaveNote = () => {
+    const treatment = treatmentsOptions.find(option => option.name === selectedTreatment);
+    if (treatment) {
+      const newTreatment = {
+        tooth: selectedTreatment,
+        treatment: treatment.name,
+        note: noteText,
+        cost: treatment.cost,
+      };
+      const newTreatments = [...treatments, newTreatment];
+      setTreatments(newTreatments);
+      setTotal(total + treatment.cost);
+      setModalVisible(false);
+      setSelectedTreatment('');
+      setNoteText('');
+    }
+  };
+
+  const handleRemoveTreatment = (index) => {
+    const treatmentToRemove = treatments[index];
+    const newTreatments = treatments.filter((_, i) => i !== index);
+    setTreatments(newTreatments);
+    setTotal(total - treatmentToRemove.cost);
+  };
+
+  return (
+    <ScrollView style={styles.container}>
+      <Text style={styles.title}>Tratamiento</Text>
+
+      <TouchableOpacity onPress={() => setShowDatePicker(true)} style={styles.dateButton}>
+        <Text>{selectedDate.toDateString()}</Text>
+      </TouchableOpacity>
+
+      {showDatePicker && (
+        <DateTimePicker
+          value={selectedDate}
+          mode="date"
+          display="default"
+          onChange={handleDateChange}
+        />
+      )}
+
+      <Text style={styles.subTitle}>Adult@:</Text>
+      <View style={styles.teethContainer}>
+        <Image source={require('../../assets/adulto.png')} style={styles.teethImageAdulto} />
+        {[...Array(32)].map((_, index) => (
+          <TouchableOpacity
+            key={index}
+            style={[styles.tooth, {
+              top: getAdultToothPosition(index + 1).top,
+              left: getAdultToothPosition(index + 1).left,
+            }]}
+            onPress={() => handleToothPress(index + 1)}
+          >
+            <Text style={styles.toothText}>{index + 1}</Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+
+      <Text style={styles.subTitle}>Niñ@:</Text>
+      <View style={styles.teethContainer}>
+        <Image source={require('../../assets/niño.png')} style={styles.teethImage} />
+        {[...Array(20)].map((_, index) => (
+          <TouchableOpacity
+            key={index}
+            style={[styles.tooth, {
+              top: getKidToothPosition(index + 1).top,
+              left: getKidToothPosition(index + 1).left,
+            }]}
+            onPress={() => handleToothPress(index + 1)}
+          >
+            <Text style={styles.toothText}>{index + 1}</Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+
+      <View style={styles.tableContainer}>
+        <View style={styles.table}>
+          <View style={styles.tableHeader}>
+            <Text style={styles.tableHeaderText}>Diente</Text>
+            <Text style={styles.tableHeaderText}>Tratamiento</Text>
+            <Text style={styles.tableHeaderText}>Nota</Text>
+            <Text style={styles.tableHeaderText}>Costo</Text>
+          </View>
+          <FlatList
+            data={treatments}
+            keyExtractor={(item, index) => index.toString()}
+            renderItem={({ item, index }) => (
+              <View style={styles.tableRow}>
+                <Text style={styles.tableCell}>{item.tooth}</Text>
+                <Text style={styles.tableCell}>{item.treatment}</Text>
+                <Text style={styles.tableCell}>{item.note}</Text>
+                <Text style={styles.tableCell}>${item.cost}</Text>
+                <TouchableOpacity onPress={() => handleRemoveTreatment(index)}>
+                  <Text style={styles.removeButton}>Eliminar</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+          />
+          <View style={styles.totalContainer}>
+            <Text style={styles.totalText}>Total: ${total}</Text>
+          </View>
+        </View>
+      </View>
+
+      <Modal
+        visible={modalVisible}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setModalVisible(false)}
+      >
+        <View style={styles.modalContainer}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Añadir Tratamiento</Text>
+            <Picker
+              selectedValue={selectedTreatment}
+              onValueChange={(itemValue) => setSelectedTreatment(itemValue)}
+              style={styles.picker}
+            >
+              <Picker.Item label="Seleccione tratamiento" value="" />
+              {treatmentsOptions.map(option => (
+                <Picker.Item key={option.name} label={option.name} value={option.name} />
+              ))}
+            </Picker>
+            <TextInput
+              style={styles.textInput}
+              placeholder="Nota"
+              value={noteText}
+              onChangeText={setNoteText}
+            />
+            <TouchableOpacity onPress={handleSaveNote} style={styles.saveButton}>
+              <Text style={styles.saveButtonText}>Guardar</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => setModalVisible(false)} style={styles.closeButton}>
+              <Text style={styles.closeButtonText}>Cerrar</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+    </ScrollView>
+  );
+};
+
+const getAdultToothPosition = (toothNumber) => {
+  const positions = {
+    1: { top: 150, left: 75 },
+    2: { top: 125, left: 75 },
+    3: { top: 95, left: 79 },
+    4: { top: 70, left: 85 },
+    5: { top: 45, left: 92 },
+    6: { top: 20, left: 107 },
+    7: { top: 10, left: 128 },
+    8: { top: 5, left: 152 },
+    9: { top: 7, left: 178 },
+    10: { top: 10, left: 200 },
+    11: { top: 22, left: 222 },
+    12: { top: 44, left: 235 },
+    13: { top: 65, left: 240 },
+    14: { top: 95, left: 247 },
+    15: { top: 125, left: 250 },
+    16: { top: 150, left: 255 },
+    17: { top: 220, left: 75 },
+    18: { top: 248, left: 79 },
+    19: { top: 280, left: 85 },
+    20: { top: 305, left: 90 },
+    21: { top: 328, left: 100 },
+    22: { top: 349, left: 110 },
+    23: { top: 359, left: 130 },
+    24: { top: 369, left: 150 },
+    25: { top: 369, left: 176 },
+    26: { top: 359, left: 197 },
+    27: { top: 349, left: 220 },
+    28: { top: 329, left: 230 },
+    29: { top: 309, left: 240 },
+    30: { top: 280, left: 245 },
+    31: { top: 245, left: 249 },
+    32: { top: 217, left: 250 },
+  };
+  return positions[toothNumber] || { top: 0, left: 0 };
+};
+
+const getKidToothPosition = (toothNumber) => {
+  const positions = {
+    1: { top: 60, left: 120 },
+    2: { top: 36, left: 126 },
+    3: { top: 18, left: 129 },
+    4: { top: 1, left: 140 },
+    5: { top: -4, left: 157 },
+    6: { top: -4, left: 173 },
+    7: { top: 1, left: 190 },
+    8: { top: 17, left: 200 },
+    9: { top: 37, left: 206 },
+    10: { top: 59, left: 210 },
+    11: { top: 110, left: 120 },
+    12: { top: 130, left: 125 },
+    13: { top: 150, left: 129 },
+    14: { top: 165, left: 140 },
+    15: { top: 174, left: 156 },
+    16: { top: 174, left: 175 },
+    17: { top: 166, left: 192 },
+    18: { top: 150, left: 200 },
+    19: { top: 131, left: 205 },
+    20: { top: 111, left: 210 },
+  };
+  return positions[toothNumber] || { top: 0, left: 0 };
+};
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    padding: 16,
+    backgroundColor: '#fff',
+  },
+  title: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    marginBottom: 16,
+  },
+  dateButton: {
+    padding: 10,
+    backgroundColor: '#ddd',
+    borderRadius: 5,
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  subTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 8,
+  },
+  teethContainer: {
+    marginBottom: 32,
+    position: 'relative',
+  },
+  teethImage: {
+    width: '100%',
+    height: 200,
+    resizeMode: 'contain',
+  },
+  teethImageAdulto: {
+    width: '100%',
+    height: 400,
+    resizeMode: 'contain',
+  },
+  tooth: {
+    position: 'absolute',
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: 'transparent',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  toothText: {
+    fontSize: 12,
+    fontWeight: 'bold',
+  },
+  tableContainer: {
+    marginBottom: 32,
+  },
+  table: {
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 5,
+    padding: 8,
+  },
+  tableHeader: {
+    flexDirection: 'row',
+    backgroundColor: '#f7f7f7',
+    borderBottomWidth: 1,
+    borderColor: '#ddd',
+  },
+  tableHeaderText: {
+    flex: 1,
+    padding: 8,
+    fontWeight: 'bold',
+  },
+  tableRow: {
+    flexDirection: 'row',
+  },
+  tableCell: {
+    flex: 1,
+    padding: 8,
+  },
+  removeButton: {
+    color: 'red',
+  },
+  totalContainer: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    padding: 8,
+    backgroundColor: '#f7f7f7',
+  },
+  totalText: {
+    fontWeight: 'bold',
+  },
+  modalContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+  },
+  modalContent: {
+    width: '80%',
+    padding: 16,
+    backgroundColor: '#fff',
+    borderRadius: 5,
+    alignItems: 'center',
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 16,
+  },
+  picker: {
+    width: '100%',
+    marginBottom: 16,
+  },
+  textInput: {
+    width: '100%',
+    padding: 8,
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 5,
+    marginBottom: 16,
+  },
+  saveButton: {
+    padding: 10,
+    backgroundColor: '#4CAF50',
+    borderRadius: 5,
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  saveButtonText: {
+    color: '#fff',
+    fontWeight: 'bold',
+  },
+  closeButton: {
+    padding: 10,
+    backgroundColor: '#f44336',
+    borderRadius: 5,
+    alignItems: 'center',
+  },
+  closeButtonText: {
+    color: '#fff',
+    fontWeight: 'bold',
+  },
+});
+
+export default TratamientoScreen;

@@ -1,10 +1,10 @@
 {
   "expo": {
     "name": "POKEAPI",
-    "slug": "POKEAPI",
+    "icon": "./assets/favicon.png",
+    "slug": "react native",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "splash": {
       "image": "./assets/splash.png",

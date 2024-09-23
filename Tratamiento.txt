@@ -1,0 +1,335 @@
+import React, { useState } from 'react';
+import { View, Text, TouchableOpacity, Modal, TextInput, StyleSheet, FlatList } from 'react-native';
+import { Picker } from '@react-native-picker/picker';
+import DateTimePickerModal from 'react-native-modal-datetime-picker'; // Instala este paquete para el calendario
+
+const upperTeethNumbers = [
+  1, 2, 3, 4, 5, 6, 7, 8,
+  9, 10, 11, 12, 13, 14, 15, 16
+];
+
+const lowerTeethNumbers = [
+  17, 18, 19, 20, 21, 22, 23, 24,
+  25, 26, 27, 28, 29, 30, 31, 32
+];
+
+const treatmentsOptions = [
+  { name: 'Resina', cost: 600 },
+  { name: 'Amalgama', cost: 400 },
+  { name: 'Corona', cost: 1000 },
+];
+
+const TratamientoScreen = () => {
+  const [selectedPatient, setSelectedPatient] = useState('');
+  const [selectedTooth, setSelectedTooth] = useState(null);
+  const [selectedTreatment, setSelectedTreatment] = useState('');
+  const [treatments, setTreatments] = useState([]);
+  const [total, setTotal] = useState(0);
+  const [modalVisible, setModalVisible] = useState(false);
+  const [noteText, setNoteText] = useState('');
+  const [selectedDate, setSelectedDate] = useState(null); // Estado para la fecha seleccionada
+  const [isDatePickerVisible, setDatePickerVisibility] = useState(false); // Estado para mostrar/ocultar el calendario
+
+  const patients = ['Christian', 'Juan', 'Jose', 'Ana', 'Johan', 'Mario', 'Luis', 'Gustavo', 'Luis', 'Miguel', 'Angel', 'Jorge', 'Gonzalo', 'Enrique', 'Eduardo', 'Alfonso'];
+  
+  const handleToothPress = (tooth) => {
+    setSelectedTooth(tooth);
+    setModalVisible(true);
+  };
+
+  const handleSaveNote = () => {
+    if (selectedTooth && selectedTreatment) {
+      const treatment = treatmentsOptions.find(t => t.name === selectedTreatment);
+      const newTreatment = {
+        tooth: selectedTooth,
+        treatment: selectedTreatment,
+        cost: treatment.cost,
+        note: noteText,
+        date: selectedDate // Incluir la fecha en el tratamiento
+      };
+      setTreatments([...treatments, newTreatment]);
+      setTotal(total + treatment.cost);
+      setSelectedTooth(null);
+      setSelectedTreatment('');
+      setNoteText('');
+      setSelectedDate(null); // Limpiar la fecha después de guardar
+      setModalVisible(false);
+    }
+  };
+
+  const handleRemoveTreatment = (index) => {
+    const newTreatments = [...treatments];
+    const [removed] = newTreatments.splice(index, 1);
+    setTreatments(newTreatments);
+    setTotal(total - removed.cost);
+  };
+
+  const showDatePicker = () => {
+    setDatePickerVisibility(true);
+  };
+
+  const hideDatePicker = () => {
+    setDatePickerVisibility(false);
+  };
+
+  const handleConfirmDate = (date) => {
+    setSelectedDate(date);
+    hideDatePicker();
+  };
+
+  return (
+    <View style={styles.container}>
+      <Text style={styles.title}>Tratamiento</Text>
+      <Picker
+        selectedValue={selectedPatient}
+        onValueChange={(itemValue) => setSelectedPatient(itemValue)}
+        style={styles.picker}
+      >
+        <Picker.Item label="Seleccione paciente" value="" />
+        {patients.map(patient => (
+          <Picker.Item key={patient} label={patient} value={patient} />
+        ))}
+      </Picker>
+
+      <TouchableOpacity onPress={showDatePicker} style={styles.dateButton}>
+        <Text>{selectedDate ? selectedDate.toLocaleDateString() : 'Seleccione fecha'}</Text>
+      </TouchableOpacity>
+
+      <DateTimePickerModal
+        isVisible={isDatePickerVisible}
+        mode="date"
+        onConfirm={handleConfirmDate}
+        onCancel={hideDatePicker}
+      />
+
+      <Text style={styles.subTitle}>Selecciona diente:</Text>
+      <View style={styles.teethContainer}>
+        {/* Upper Teeth */}
+        <View style={styles.teethRow}>
+          {upperTeethNumbers.map((tooth, index) => (
+            <TouchableOpacity
+              key={index}
+              style={[
+                styles.tooth,
+                {
+                  left: `${(50 + 40 * Math.cos(Math.PI * index / 16)).toFixed(2)}%`,
+                  top: `${(40 - 30 * Math.sin(Math.PI * index / 16)).toFixed(2)}%`
+                }
+              ]}
+              onPress={() => handleToothPress(tooth)}
+            >
+              <Text style={styles.toothText}>{tooth}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+
+        {/* Lower Teeth */}
+        <View style={styles.teethRow}>
+          {lowerTeethNumbers.map((tooth, index) => (
+            <TouchableOpacity
+              key={index}
+              style={[
+                styles.tooth,
+                {
+                  left: `${(50 + 40 * Math.cos(Math.PI * index / 16)).toFixed(2)}%`,
+                  top: `${(70 + 30 * Math.sin(Math.PI * index / 16)).toFixed(2)}%`
+                }
+              ]}
+              onPress={() => handleToothPress(tooth)}
+            >
+              <Text style={styles.toothText}>{tooth}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      </View>
+
+      <View style={styles.table}>
+        <View style={styles.tableHeader}>
+          <Text style={styles.tableHeaderText}>Diente</Text>
+          <Text style={styles.tableHeaderText}>Tratamiento</Text>
+          <Text style={styles.tableHeaderText}>Costo</Text>
+        </View>
+        <FlatList
+          data={treatments}
+          renderItem={({ item, index }) => (
+            <View style={styles.treatmentRow}>
+              <Text style={styles.treatmentText}>{item.tooth}</Text>
+              <Text style={styles.treatmentText}>{item.treatment}</Text>
+              <Text style={styles.treatmentText}>${item.cost.toFixed(2)}</Text>
+              <TouchableOpacity onPress={() => handleRemoveTreatment(index)}>
+                <Text style={styles.removeButton}>X</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+          keyExtractor={(item, index) => index.toString()}
+        />
+      </View>
+
+      <Text style={styles.totalText}>Total: ${total.toFixed(2)}</Text>
+
+      <TouchableOpacity style={styles.saveButton} onPress={handleSaveNote}>
+        <Text style={styles.saveButtonText}>Guardar tratamiento</Text>
+      </TouchableOpacity>
+
+      <Modal
+        animationType="slide"
+        transparent={true}
+        visible={modalVisible}
+        onRequestClose={() => setModalVisible(false)}
+      >
+        <View style={styles.modalView}>
+          <Text>Diente {selectedTooth}</Text>
+          <Picker
+            selectedValue={selectedTreatment}
+            onValueChange={(itemValue) => setSelectedTreatment(itemValue)}
+            style={styles.picker}
+          >
+            <Picker.Item label="Seleccione tratamiento" value="" />
+            {treatmentsOptions.map(treatment => (
+              <Picker.Item key={treatment.name} label={treatment.name} value={treatment.name} />
+            ))}
+          </Picker>
+          <TextInput
+            style={styles.input}
+            placeholder="Ingrese nota"
+            value={noteText}
+            onChangeText={setNoteText}
+          />
+          <TouchableOpacity style={styles.button} onPress={handleSaveNote}>
+            <Text style={styles.buttonText}>Guardar Nota</Text>
+          </TouchableOpacity>
+        </View>
+      </Modal>
+    </View>
+  );
+};
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    padding: 20,
+    backgroundColor: '#fff'
+  },
+  title: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    textAlign: 'center',
+    marginBottom: 20
+  },
+  picker: {
+    height: 50,
+    width: '100%',
+    marginBottom: 20
+  },
+  dateButton: {
+    height: 50,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#ccc',
+    marginBottom: 20
+  },
+  subTitle: {
+    fontSize: 18,
+    marginBottom: 10
+  },
+  teethContainer: {
+    position: 'relative',
+    width: 300,
+    height: 200,
+    alignSelf: 'center',
+    marginBottom: 20
+  },
+  teethRow: {
+    position: 'absolute',
+    width: '100%',
+    height: '100%',
+  },
+  tooth: {
+    width: 30,
+    height: 30,
+    borderWidth: 1,
+    borderColor: '#000',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 15,
+    position: 'absolute',
+    transform: [{ translateX: -15 }, { translateY: -15 }],
+  },
+  toothText: {
+    fontSize: 12,
+  },
+  table: {
+    marginTop: 20,
+  },
+  tableHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    backgroundColor: '#f1f1f1',
+    padding: 10,
+  },
+  tableHeaderText: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    flex: 1,
+    textAlign: 'center',
+  },
+  treatmentRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    borderBottomWidth: 1,
+    borderColor: '#eee',
+    paddingVertical: 5
+  },
+  treatmentText: {
+    fontSize: 16,
+    flex: 1,
+    textAlign: 'center'
+  },
+  removeButton: {
+    color: 'red',
+    fontSize: 16,
+    marginLeft: 10
+  },
+  totalText: {
+    fontSize: 20,
+    textAlign: 'center',
+    marginBottom: 20
+  },
+  saveButton: {
+    backgroundColor: '#28a745',
+    padding: 10,
+    borderRadius: 4,
+    alignItems: 'center'
+  },
+  saveButtonText: {
+    color: '#fff',
+    fontSize: 16
+  },
+  modalView: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'white',
+    padding: 20,
+  },
+  input: {
+    width: '80%',
+    height: 40,
+    borderColor: 'gray',
+    borderWidth: 1,
+    marginTop: 20,
+    paddingLeft: 10,
+  },
+  button: {
+    marginTop: 20,
+    padding: 10,
+    backgroundColor: 'blue',
+  },
+  buttonText: {
+    color: 'white',
+  },
+});
+
+export default TratamientoScreen;
