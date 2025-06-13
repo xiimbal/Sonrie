@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRoute } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -6,243 +6,197 @@ import {
   ScrollView,
   TextInput,
   TouchableOpacity,
+  StyleSheet,
   SafeAreaView,
   Alert,
-  StyleSheet,
+  ActivityIndicator,
 } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute } from '@react-navigation/native';
 
-const PacientesScreen = () => {
-  const { IdSesion } = route.params || {};
+const HomeScreen = () => {
+  const navigation = useNavigation();
+  const route = useRoute();
+  const { idSession } = route.params || {};
+
   const [searchQuery, setSearchQuery] = useState('');
   const [patients, setPatients] = useState([]);
-  const navigation = useNavigation();
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
 
-  const isValidUrl = (url) => typeof url === 'string' && url.startsWith('http');
-
-  const decodeXmlEntities = (str) => {
-    if (!str) return str;
-    return str
-      .replace(/&amp;/g, '&')
-      .replace(/&lt;/g, '<')
-      .replace(/&gt;/g, '>')
-      .replace(/&quot;/g, '"')
-      .replace(/&#039;/g, "'")
-      .replace(/&apos;/g, "'");
-  };
-
-  const fetchPatientsFromWebService = useCallback(async () => {
-    if (!IdSesion) {
-      Alert.alert('Error', 'No se proporcionó IdSesion.');
+  const fetchPatients = useCallback(async () => {
+    if (!idSession) {
+      setError('No se recibió IdSession');
       return;
     }
 
-    const soapBody = `
-      <soapenv:Envelope xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-                        xmlns:xsd="http://www.w3.org/2001/XMLSchema"
-                        xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/"
-                        xmlns:urn="urn:explorar">
-        <soapenv:Header/>
-        <soapenv:Body>
-          <urn:buscarLugares soapenv:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">
-            <latitud xsi:type="xsd:float">0</latitud>
-            <longitud xsi:type="xsd:float">0</longitud>
-            <radio xsi:type="xsd:float">0</radio>
-            <TipoCliente xsi:type="xsd:int">0</TipoCliente>
-            <pagina xsi:type="xsd:int">1</pagina>
-            <IdSesion xsi:type="xsd:string">${IdSesion}</IdSesion>
-            <IdEjecutivos xsi:type="xsd:string"></IdEjecutivos>
-            <TipoEjecutivos xsi:type="xsd:int">0</TipoEjecutivos>
-            <MostrarLocalidades xsi:type="xsd:int">0</MostrarLocalidades>
-          </urn:buscarLugares>
-        </soapenv:Body>
-      </soapenv:Envelope>
-    `;
+    setLoading(true);
+    setError(null);
+
+    const soapRequest = `<?xml version="1.0" encoding="utf-8"?>
+    <soapenv:Envelope xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                      xmlns:xsd="http://www.w3.org/2001/XMLSchema"
+                      xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/"
+                      xmlns:urn="urn:explorar">
+      <soapenv:Header/>
+      <soapenv:Body>
+        <urn:buscarLugares soapenv:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">
+          <latitud xsi:type="xsd:float">0</latitud>
+          <longitud xsi:type="xsd:float">0</longitud>
+          <radio xsi:type="xsd:float">0</radio>
+          <TipoCliente xsi:type="xsd:int">0</TipoCliente>
+          <pagina xsi:type="xsd:int">1</pagina>
+          <IdSesion xsi:type="xsd:string">${idSession}</IdSesion>
+          <IdEjecutivos xsi:type="xsd:string"></IdEjecutivos>
+          <TipoEjecutivos xsi:type="xsd:int">0</TipoEjecutivos>
+          <MostrarLocalidades xsi:type="xsd:int">0</MostrarLocalidades>
+        </urn:buscarLugares>
+      </soapenv:Body>
+    </soapenv:Envelope>`;
 
     try {
-      const response = await fetch(
-        'http://pakal.factury.mx/wspakal/Explorar2.php',
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'text/xml;charset=UTF-8',
-            SOAPAction: 'urn:explorar#buscarLugares',
-          },
-          body: soapBody,
-        }
-      );
+      const response = await fetch('http://pakal.factury.mx/wspakal/Explorar2.php', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'text/xml; charset=utf-8',
+          SOAPAction: 'urn:explorar#buscarLugares',
+        },
+        body: soapRequest,
+      });
 
-      const responseText = await response.text();
-      const match = responseText.match(/<return[^>]*>([\s\S]*?)<\/return>/);
+      const textResponse = await response.text();
+      const match = textResponse.match(/<return[^>]*>(.*?)<\/return>/);
 
       if (match && match[1]) {
-        const rawReturn = decodeXmlEntities(match[1].trim());
+        let jsonString = match[1]
+          .replace(/&amp;/g, "&")
+          .replace(/&lt;/g, "<")
+          .replace(/&gt;/g, ">")
+          .replace(/&quot;/g, '"')
+          .replace(/&#39;/g, "'");
 
-        if (rawReturn.startsWith('[') && rawReturn.endsWith(']')) {
-          try {
-            const parsed = JSON.parse(rawReturn);
-            if (Array.isArray(parsed)) {
-              const filtered = parsed.map(({ NombreNegocio, TipoCliente }) => ({
-                NombreNegocio,
-                TipoCliente,
-                IdSesion,
-              }));
-              setPatients(filtered);
-            } else {
-              console.warn('Parsed result is not an array');
-              setPatients([]);
-            }
-          } catch (error) {
-            console.error('Error al parsear JSON:', error);
+        try {
+          const patientsData = JSON.parse(jsonString);
+          if (Array.isArray(patientsData)) {
+            setPatients(patientsData);
+            setError(null);
+          } else {
+            setError('El formato de pacientes no es válido');
             setPatients([]);
           }
-        } else {
-          console.warn('Contenido del return no es un array');
+        } catch (parseError) {
+          setError('Error al parsear JSON: ' + parseError.message);
           setPatients([]);
         }
       } else {
-        console.warn('No se encontró el contenido de <return>');
+        setError('Respuesta malformada del servidor');
         setPatients([]);
       }
-    } catch (error) {
-      console.error('Error al llamar web service:', error);
+    } catch (fetchError) {
+      setError('Error de conexión: ' + fetchError.message);
       setPatients([]);
     }
-  }, [IdSesion]);
+
+    setLoading(false);
+  }, [idSession]);
 
   useEffect(() => {
-    fetchPatientsFromWebService();
-  }, [fetchPatientsFromWebService]);
+    fetchPatients();
+  }, [fetchPatients]);
 
-  const filteredPatients = patients.filter((p) =>
-    p.NombreNegocio?.toLowerCase().includes(searchQuery.toLowerCase())
+  // Filtrado seguro
+  const filteredPatients = patients.filter(patient =>
+    patient.NombreNegocio?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const handleAddPatient = async (newPatient) => {
-    if (!newPatient?.NombreNegocio) {
-      Alert.alert('Error', 'El paciente debe tener un nombre válido.');
-      return;
-    }
-    const updated = [...patients, newPatient];
-    setPatients(updated);
-  };
-
-  const handleDeletePatient = (patientToDelete) => {
-    Alert.alert(
-      'Confirmar eliminación',
-      `¿Eliminar a ${patientToDelete.NombreNegocio}?`,
-      [
-        { text: 'No', style: 'cancel' },
-        {
-          text: 'Sí',
-          onPress: () => {
-            setPatients(patients.filter((p) => p !== patientToDelete));
-            Alert.alert('Paciente eliminado');
-          },
-        },
-      ]
-    );
-  };
-
+  // Manejo de click para navegar al detalle, pasando el paciente
   const handlePatientClick = (patient) => {
     navigation.navigate('PacienteDetailscreen', { patient });
+  };
+
+  // Para borrar paciente (localmente)
+  const handleDeletePatient = (patientToDelete) => {
+    Alert.alert(
+      "Confirmar eliminación",
+      `¿Estás seguro de que quieres eliminar a ${patientToDelete.NombreNegocio || 'este paciente'}?`,
+      [
+        {
+          text: "No",
+          style: "cancel"
+        },
+        {
+          text: "Sí",
+          onPress: () => {
+            const updatedPatients = patients.filter(p => p !== patientToDelete);
+            setPatients(updatedPatients);
+          }
+        }
+      ]
+    );
   };
 
   return (
     <SafeAreaView style={styles.container}>
       <Text style={styles.header}>Pacientes</Text>
+
       <View style={styles.searchContainer}>
         <TextInput
           style={styles.searchInput}
           placeholder="Buscar paciente"
           value={searchQuery}
-          onChangeText={setSearchQuery}
+          onChangeText={text => setSearchQuery(text)}
         />
         <TouchableOpacity
           style={styles.addButton}
-          onPress={() =>
-            navigation.navigate('NewPaciente', { addPatient: handleAddPatient })
-          }>
-          <Image
-            style={styles.addIcon}
-            source={{
-              uri: 'https://img.icons8.com/ios-filled/50/ffffff/add-user-male.png',
-            }}
-          />
+          onPress={() => navigation.navigate('NewPaciente', { addPatient: (newPatient) => setPatients(p => [...p, newPatient]) })}
+        >
+          <Image style={styles.addIcon} source={{ uri: 'https://img.icons8.com/ios-filled/50/ffffff/add-user-male.png' }} />
         </TouchableOpacity>
       </View>
 
+      {loading && <ActivityIndicator size="large" color="#007BFF" />}
+
+      {error && <Text style={{ color: 'red', textAlign: 'center', marginBottom: 10 }}>{error}</Text>}
+
       <ScrollView contentContainerStyle={styles.patientsContainer}>
-        {filteredPatients.length > 0 ? (
-          filteredPatients.map((patient, index) => (
-            <View key={patient.IdSesion + index} style={styles.patientCard}>
-              <TouchableOpacity
-                onPress={() => handlePatientClick(patient)}
-                style={{ flex: 1 }}>
-                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                  <Image
-                    style={styles.patientImage}
-                    source={{
-                      uri: isValidUrl(patient.patientImage)
-                        ? patient.patientImage
-                        : 'https://via.placeholder.com/150',
-                    }}
-                  />
-                  <Text style={[styles.patientName, { marginLeft: 10 }]}>
-                    {patient.NombreNegocio}
-                  </Text>
-                </View>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.deleteButton}
-                onPress={() => handleDeletePatient(patient)}>
-                <Text style={styles.deleteButtonText}>X</Text>
-              </TouchableOpacity>
-            </View>
-          ))
-        ) : (
-          <Text style={styles.noPatientsText}>No se encontraron pacientes</Text>
+        {filteredPatients.length === 0 && !loading && (
+          <Text style={{ textAlign: 'center', marginTop: 20 }}>No hay pacientes para mostrar.</Text>
         )}
+        {filteredPatients.map((patient, index) => (
+          <View key={index} style={styles.patientCard}>
+            <TouchableOpacity onPress={() => handlePatientClick(patient)}>
+              <Image
+                style={styles.patientImage}
+                source={
+                  patient.patientImage
+                    ? { uri: patient.patientImage }
+                    : { uri: 'https://via.placeholder.com/150' }
+                }
+              />
+              <Text>{patient.NombreNegocio || 'Sin nombre'}</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.deleteButton}
+              onPress={() => handleDeletePatient(patient)}
+            >
+              <Text style={styles.deleteButtonText}>X</Text>
+            </TouchableOpacity>
+          </View>
+        ))}
       </ScrollView>
 
       <View style={styles.navBar}>
         <TouchableOpacity style={styles.navButton}>
-          <Image
-            style={styles.navIcon}
-            source={{
-              uri: 'https://img.icons8.com/ios-filled/50/000000/user.png',
-            }}
-          />
+          <Image style={styles.navIcon} source={{ uri: 'https://img.icons8.com/ios-filled/50/000000/user.png' }} />
         </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.navButton}
-          onPress={() => navigation.navigate('Clock', { patients })}>
-          <Image
-            style={styles.navIcon}
-            source={{
-              uri: 'https://img.icons8.com/ios-filled/50/000000/calendar.png',
-            }}
-          />
+        <TouchableOpacity style={styles.navButton} onPress={() => navigation.navigate('Clock', { patients })}>
+          <Image style={styles.navIcon} source={{ uri: 'https://img.icons8.com/ios-filled/50/000000/calendar.png' }} />
         </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.navButton}
-          onPress={() => navigation.navigate('Tratamiento')}>
-          <Image
-            style={styles.navIcon}
-            source={{
-              uri: 'https://img.icons8.com/ios-filled/50/000000/tooth.png',
-            }}
-          />
+        <TouchableOpacity style={styles.navButton} onPress={() => navigation.navigate('Tratamiento')}>
+          <Image style={styles.navIcon} source={{ uri: 'https://img.icons8.com/ios-filled/50/000000/tooth.png' }} />
         </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.navButton}
-          onPress={() => Alert.alert('Función en desarrollo')}>
-          <Image
-            style={styles.navIcon}
-            source={{
-              uri: 'https://img.icons8.com/ios-filled/50/000000/document.png',
-            }}
-          />
+        <TouchableOpacity style={styles.navButton}>
+          <Image style={styles.navIcon} source={{ uri: 'https://img.icons8.com/ios-filled/50/000000/document.png' }} />
         </TouchableOpacity>
       </View>
     </SafeAreaView>
@@ -250,92 +204,87 @@ const PacientesScreen = () => {
 };
 
 const styles = StyleSheet.create({
-  // (tu objeto styles igual que antes)
   container: {
     flex: 1,
-    backgroundColor: '#f4f4f4',
+    backgroundColor: '#fff',
+    marginTop: 50,
   },
   header: {
-    fontSize: 24,
+    fontSize: 34,
     fontWeight: 'bold',
     textAlign: 'center',
     marginVertical: 10,
   },
   searchContainer: {
     flexDirection: 'row',
-    margin: 10,
-    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    marginBottom: 10,
   },
   searchInput: {
     flex: 1,
+    height: 40,
+    borderColor: '#ccc',
     borderWidth: 1,
-    borderColor: '#aaa',
-    borderRadius: 8,
-    padding: 10,
-    backgroundColor: '#fff',
+    borderRadius: 20,
+    paddingHorizontal: 15,
   },
   addButton: {
     marginLeft: 10,
-    backgroundColor: '#007bff',
-    padding: 10,
-    borderRadius: 8,
+    backgroundColor: '#007BFF',
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    width: 40,
+    height: 40,
   },
   addIcon: {
-    width: 24,
-    height: 24,
+    width: 20,
+    height: 20,
     tintColor: '#fff',
   },
   patientsContainer: {
-    paddingHorizontal: 10,
-    paddingBottom: 80,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
   },
   patientCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#fff',
-    marginVertical: 5,
-    padding: 10,
+    backgroundColor: '#f9f9f9',
+    padding: 15,
     borderRadius: 10,
-    elevation: 2,
-    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
+    width: '45%',
+    position: 'relative',
+  },
+  deleteButton: {
+    position: 'absolute',
+    top: 10,
+    right: 10,
+    backgroundColor: '#ff4d4d',
+    borderRadius: 15,
+    width: 30,
+    height: 30,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  deleteButtonText: {
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: 'bold',
   },
   patientImage: {
     width: 50,
     height: 50,
-    borderRadius: 25,
-  },
-  patientName: {
-    marginTop: 5,
-    fontSize: 16,
-    fontWeight: '500',
-  },
-  deleteButton: {
-    marginLeft: 10,
-    backgroundColor: '#ff4d4d',
-    padding: 8,
-    borderRadius: 8,
-  },
-  deleteButtonText: {
-    color: '#fff',
-    fontWeight: 'bold',
-  },
-  noPatientsText: {
-    textAlign: 'center',
-    marginTop: 20,
-    fontSize: 16,
-    color: '#666',
+    marginBottom: 10,
   },
   navBar: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    backgroundColor: '#eaeaea',
     flexDirection: 'row',
     justifyContent: 'space-around',
     paddingVertical: 10,
+    borderTopColor: '#ccc',
     borderTopWidth: 1,
-    borderColor: '#ccc',
   },
   navButton: {
     alignItems: 'center',
@@ -346,4 +295,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default PacientesScreen;
+export default HomeScreen;
